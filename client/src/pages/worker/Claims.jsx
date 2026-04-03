@@ -2,25 +2,25 @@
 // GigShield AI — Worker Claims History
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { claimAPI } from '../../api';
+import { usePolling } from '../../hooks/usePolling';
 import { FiClock, FiCheckCircle, FiXCircle, FiEye, FiAlertTriangle } from 'react-icons/fi';
 
 export default function Claims() {
-  const [claims, setClaims] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await claimAPI.list({});
-        setClaims(data.data?.claims || []);
-      } catch (err) { /* graceful */ }
-      setLoading(false);
+  const fetchClaims = useCallback(async () => {
+    try {
+      const { data } = await claimAPI.list({});
+      return data.data?.claims || [];
+    } catch {
+      return [];
     }
-    load();
   }, []);
+
+  const { data: claimsObj, loading } = usePolling(fetchClaims, 3000);
+  const claims = claimsObj || [];
 
   const statusIcon = (s) => {
     if (s === 'auto_approved' || s === 'approved') return <FiCheckCircle color="#10b981" />;
@@ -102,29 +102,66 @@ export default function Claims() {
         </div>
       )}
 
-      {/* Claim detail modal */}
+      {/* Claim detail modal - Zero Touch Timeline */}
       {selected && (
-        <div className="gs-card" style={{ marginTop: '1.5rem', border: '1px solid var(--gs-accent)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <h3 style={{ fontWeight: 600 }}>Claim Details</h3>
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--gs-text-muted)', cursor: 'pointer' }}><FiXCircle size={18} /></button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-            <div><span style={{ color: 'var(--gs-text-muted)' }}>Claim #:</span> {selected.claim_number}</div>
-            <div><span style={{ color: 'var(--gs-text-muted)' }}>Status:</span> {statusBadge(selected.status)}</div>
-            <div><span style={{ color: 'var(--gs-text-muted)' }}>Amount:</span> <strong>₹{selected.claim_amount}</strong></div>
-            <div><span style={{ color: 'var(--gs-text-muted)' }}>Fraud Score:</span> {((selected.fraud_score || 0) * 100).toFixed(1)}%</div>
-            <div><span style={{ color: 'var(--gs-text-muted)' }}>Type:</span> {selected.disruption_type?.replace('_', ' ')}</div>
-            <div><span style={{ color: 'var(--gs-text-muted)' }}>Date:</span> {new Date(selected.created_at).toLocaleString()}</div>
-          </div>
-          {selected.evidence && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 8, fontSize: '0.8rem' }}>
-              <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--gs-text-secondary)' }}>Evidence</div>
-              <pre style={{ color: 'var(--gs-text-muted)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-                {typeof selected.evidence === 'string' ? selected.evidence : JSON.stringify(selected.evidence, null, 2)}
-              </pre>
+        <div className="gs-card gs-fade-in" style={{ marginTop: '1.5rem', border: '1px solid var(--gs-accent)', background: 'rgba(99,102,241,0.02)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--gs-border)', paddingBottom: '1rem' }}>
+            <div>
+              <h3 style={{ fontWeight: 600, color: 'var(--gs-text)' }}>Zero-Touch Claim Timeline</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--gs-text-secondary)' }}>Claim #: {selected.claim_number}</p>
             </div>
-          )}
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--gs-text-muted)', cursor: 'pointer' }}><FiXCircle size={22} /></button>
+          </div>
+
+          <div style={{ display: 'flex', padding: '1rem', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '2rem', alignItems: 'center' }}>
+            <div style={{ marginRight: '1rem', background: '#10b981', color: '#fff', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FiCheckCircle size={24} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, color: '#10b981', fontSize: '1.1rem' }}>🎉 You are eligible for ₹{selected.claim_amount} compensation!</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--gs-text-secondary)', marginTop: '2px' }}>Your claim for {selected.disruption_type?.replace('_', ' ')} has been auto-processed.</div>
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', paddingLeft: '2rem', marginBottom: '2rem' }}>
+            {/* Vertical Line */}
+            <div style={{ position: 'absolute', left: '11px', top: '10px', bottom: '10px', width: '2px', background: 'var(--gs-accent-light)' }}></div>
+            
+            {/* Step 1: Detected */}
+            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+              <div style={{ position: 'absolute', left: '-2.15rem', top: '4px', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--gs-accent)' }}></div>
+              <div style={{ fontWeight: 600, color: 'var(--gs-text)' }}>1. Event Detected & Logged</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--gs-text-secondary)' }}>{new Date(selected.created_at).toLocaleString()}</div>
+              <div style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '8px', borderRadius: '6px', border: '1px solid var(--gs-border)', marginTop: '6px' }}>
+                <span style={{ color: 'var(--gs-accent)', fontWeight: 600 }}>[Trigger Activated]</span> {selected.disruption_type?.replace('_', ' ').toUpperCase()} threshold crossed. Claim auto-created.
+              </div>
+            </div>
+
+            {/* Step 2: Verified */}
+            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+              <div style={{ position: 'absolute', left: '-2.15rem', top: '4px', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--gs-accent)' }}></div>
+              <div style={{ fontWeight: 600, color: 'var(--gs-text)' }}>2. AI Verification & Fraud Check</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--gs-text-secondary)' }}>{new Date(selected.created_at).toLocaleString()}</div>
+              <div style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '8px', borderRadius: '6px', border: '1px solid var(--gs-border)', marginTop: '6px' }}>
+                <span style={{ color: (selected.fraud_score || 0) > 0.3 ? 'var(--gs-warning)' : 'var(--gs-success)', fontWeight: 600 }}>[AI Validation]</span> Risk Score: {((selected.fraud_score || 0) * 100).toFixed(1)}%. {
+                  (selected.fraud_score || 0) > 0.3 ? "Flagged for review due to risk factors." : "Clean verification, Location matches + normal pattern."
+                }
+              </div>
+            </div>
+
+            {/* Step 3: Paid */}
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: '-2.15rem', top: '4px', width: '12px', height: '12px', borderRadius: '50%', background: (selected.status === 'auto_approved' || selected.status === 'approved') ? 'var(--gs-success)' : 'var(--gs-border)' }}></div>
+              <div style={{ fontWeight: 600, color: 'var(--gs-text)' }}>3. Instant Payout</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--gs-text-secondary)' }}>Status: {statusBadge(selected.status)}</div>
+              {(selected.status === 'auto_approved' || selected.status === 'approved') && (
+                <div style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '8px', borderRadius: '6px', border: '1px solid var(--gs-border)', marginTop: '6px' }}>
+                  <span style={{ color: 'var(--gs-success)', fontWeight: 600 }}>[Razorpay Triggered]</span> ₹{selected.claim_amount} sent to linked UPI immediately.
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
       )}
     </div>

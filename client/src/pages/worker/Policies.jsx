@@ -34,6 +34,21 @@ export default function Policies() {
     loadZones();
   }, []);
 
+  useEffect(() => {
+    if (form.zone_id) {
+      fetchQuote();
+    }
+  }, [form.zone_id, form.disruption_type, form.coverage_tier]);
+
+  async function fetchQuote() {
+    try {
+      const { data } = await policyAPI.getQuote(form);
+      setQuote(data.data.quote);
+    } catch (err) {
+      setQuote(null);
+    }
+  }
+
   async function loadPolicies() {
     try {
       const { data } = await policyAPI.list({});
@@ -161,8 +176,29 @@ export default function Policies() {
               </div>
             </div>
 
-            <button type="submit" className="gs-btn gs-btn-success" style={{ width: '100%', justifyContent: 'center', padding: 12 }} disabled={loading}>
-              {loading ? 'Processing...' : <><FiCheck /> Purchase Policy (1 Week)</>}
+            {/* Live Quote Breakdown */}
+            {quote && (
+              <div style={{ marginBottom: '1.5rem', background: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: 12, border: '1px solid rgba(99,102,241,0.2)' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--gs-text)' }}>Dynamic Pricing Breakdown</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {quote.pricing_breakdown?.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      <span style={{ color: 'var(--gs-text-secondary)' }}>{item.label}</span>
+                      <span style={{ fontWeight: item.amount > 0 ? 500 : 600, color: item.amount < 0 ? 'var(--gs-success)' : 'inherit' }}>
+                        {item.amount > 0 ? '+' : ''}₹{item.amount}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--gs-border)', fontWeight: 700 }}>
+                    <span>Total Premium</span>
+                    <span style={{ fontSize: '1.1rem', color: 'var(--gs-accent)' }}>₹{quote.premium_amount}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button type="submit" className="gs-btn gs-btn-success" style={{ width: '100%', justifyContent: 'center', padding: 12 }} disabled={loading || !quote}>
+              {loading ? 'Processing...' : <><FiCheck /> Purchase Policy Format (₹{quote ? quote.premium_amount : '--'})</>}
             </button>
           </form>
         </div>

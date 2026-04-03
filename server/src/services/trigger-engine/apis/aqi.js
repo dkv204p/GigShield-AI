@@ -7,7 +7,7 @@
 const config = require('../../../config/env');
 const logger = require('../../../utils/logger');
 
-const API_KEY = config.aqiApiKey || 'demo';
+const API_KEY = config.apis?.waqiKey || 'demo';
 const BASE_URL = 'https://api.waqi.info';
 
 const AqiAPI = {

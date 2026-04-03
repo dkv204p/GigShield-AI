@@ -8,7 +8,7 @@
 const config = require('../../../config/env');
 const logger = require('../../../utils/logger');
 
-const API_KEY = config.weatherApiKey || 'demo_key';
+const API_KEY = config.apis?.openWeatherKey || 'demo_key';
 const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
 const WeatherAPI = {
@@ -17,6 +17,28 @@ const WeatherAPI = {
    * Returns rainfall, temperature, humidity, wind speed, and conditions.
    */
   async getCurrentWeather(lat, lng) {
+    // ── HACKATHON DEMO OVERRIDE ──
+    // If coords are roughly Bengaluru (lat ~12.9, lng ~77.6), Force Extreme Rain
+    if (Math.abs(lat - 12.93) < 0.1 && Math.abs(lng - 77.62) < 0.1) {
+      logger.info(`⛈️ DEMO OVERRIDE: Forcing Extreme Rain for Bengaluru (${lat}, ${lng})`);
+      return {
+        source: 'demo_mock',
+        temperature: 24,
+        feels_like: 25,
+        humidity: 95,
+        wind_speed: 15,
+        rainfall_1h: 40,   // Triggers 1h threshold
+        rainfall_3h: 120,  // Triggers 3h threshold (extreme_rain severe)
+        snowfall_1h: 0,
+        clouds: 100,
+        visibility: 200,
+        condition: 'Rain',
+        description: 'heavy intensity rain',
+        timestamp: new Date().toISOString(),
+        coordinates: { lat, lng },
+      };
+    }
+
     try {
       const url = `${BASE_URL}/weather?lat=${lat}&lon=${lng}&appid=${API_KEY}&units=metric`;
 
@@ -56,6 +78,19 @@ const WeatherAPI = {
    * Returns expected total rainfall in mm.
    */
   async getRainfallForecast(lat, lng) {
+    // ── HACKATHON DEMO OVERRIDE ──
+    // If coords are roughly Bengaluru (lat ~12.9, lng ~77.6), Force Extreme Rain Forecast
+    if (Math.abs(lat - 12.93) < 0.1 && Math.abs(lng - 77.62) < 0.1) {
+      return {
+        source: 'demo_mock',
+        forecast_hours: 24,
+        total_rainfall_mm: 150,
+        max_3h_rainfall_mm: 45,
+        entries: 8,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     try {
       const url = `${BASE_URL}/forecast?lat=${lat}&lon=${lng}&appid=${API_KEY}&units=metric&cnt=8`;
 

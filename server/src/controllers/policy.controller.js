@@ -43,8 +43,13 @@ const PolicyController = {
         });
       }
 
-      // Calculate premium (simplified — in production, call AI service)
-      const premiumAmount = calculateSimplePremium(coverage_tier, disruption_type, worker.risk_tier);
+      // Calculate dynamic premium with factors
+      const { premium: premiumAmount, breakdown } = calculateDynamicPremium(
+        coverage_tier, 
+        disruption_type, 
+        worker.risk_tier,
+        worker.city // Passed to simulate city-based dynamic weather/aqi
+      );
 
       // Create policy
       const policy = await PolicyModel.create({
@@ -59,8 +64,9 @@ const PolicyController = {
           zone_risk_tier: worker.risk_tier,
           coverage_tier,
           disruption_type,
-          base_premium: premiumAmount,
-          model_version: 'v1.0-simple',
+          base_premium: breakdown.find(b => b.type === 'base').amount,
+          dynamic_breakdown: breakdown,
+          model_version: 'v2.0-dynamic',
         },
       });
 
@@ -211,17 +217,32 @@ const PolicyController = {
    */
   async getQuote(req, res, next) {
     try {
-      const { coverage_tier, disruption_type } = req.body;
+      const { coverage_tier, disruption_type, zone_id } = req.body;
       const worker = await UserModel.findById(req.user.id);
+      
+      let targetZoneId = zone_id || worker.zone_id;
 
-      if (!worker.zone_id) {
+      if (!targetZoneId) {
         return res.status(400).json({
           success: false,
           message: 'Select a work zone first to get a quote.',
         });
       }
+      
+      const LocationModel = require('../models/location.model');
+      const targetZone = await LocationModel.findById(targetZoneId);
+      
+      if (!targetZone) {
+        return res.status(404).json({ success: false, message: 'Zone not found' });
+      }
 
-      const premiumAmount = calculateSimplePremium(coverage_tier, disruption_type, worker.risk_tier);
+      const { premium: premiumAmount, breakdown } = calculateDynamicPremium(
+        coverage_tier, 
+        disruption_type, 
+        targetZone.risk_tier,
+        targetZone.city
+      );
+      
       const payoutAmount = getPayoutAmount(coverage_tier);
 
       res.json({
@@ -231,12 +252,13 @@ const PolicyController = {
             coverage_tier,
             disruption_type,
             premium_amount: premiumAmount,
+            pricing_breakdown: breakdown,
             payout_amount: payoutAmount,
             week: getCurrentWeekRange(),
             zone: {
-              name: worker.zone_name,
-              city: worker.city,
-              risk_tier: worker.risk_tier,
+              name: targetZone.zone_name,
+              city: targetZone.city,
+              risk_tier: targetZone.risk_tier,
             },
           },
         },
@@ -247,36 +269,61 @@ const PolicyController = {
   },
 };
 
-// ── Simplified premium calculator (placeholder for AI service) ──
+// ── Phase 2: Dynamic Premium Engine ──
 
-function calculateSimplePremium(coverageTier, disruptionType, riskTier) {
-  const basePremiums = {
-    basic: 35,
-    standard: 60,
-    premium: 95,
-  };
+function calculateDynamicPremium(coverageTier, disruptionType, riskTier, city) {
+  let breakdown = [];
+  
+  // 1. Base Coverage Tier
+  const basePremiums = { basic: 35, standard: 60, premium: 95 };
+  let currentPremium = basePremiums[coverageTier] || 60;
+  breakdown.push({ type: 'base', label: `Base (${coverageTier})`, amount: currentPremium });
 
-  const disruptionMultipliers = {
-    extreme_rain: 1.0,
-    extreme_heat: 0.8,
-    air_pollution: 0.9,
-    flood: 1.3,
-    curfew: 1.1,
-  };
+  // 2. City & Weather Simulation (Mock real-time APIs)
+  // In a real app we'd call WeatherAPI.getCurrent() here
+  let currentAQI = 150;
+  let currentRainMM = 10;
+  
+  if (city === 'Delhi') currentAQI = 420;
+  if (city === 'Mumbai') currentRainMM = 65;
+  if (city === 'Bengaluru') { currentAQI = 50; currentRainMM = 0; }
 
-  const riskMultipliers = {
-    low: 0.8,
-    medium: 1.0,
-    high: 1.2,
-    critical: 1.5,
-  };
+  // 3. Dynamic Adjustments (The Wow Factor)
+  if (currentRainMM > 50) {
+    let rainSurcharge = 15;
+    currentPremium += rainSurcharge;
+    breakdown.push({ type: 'weather', label: `Heavy Rain Alert (>50mm)`, amount: rainSurcharge });
+  }
 
-  let premium = basePremiums[coverageTier] || 60;
-  premium *= disruptionMultipliers[disruptionType] || 1.0;
-  premium *= riskMultipliers[riskTier] || 1.0;
+  if (currentAQI > 300) {
+    let aqiSurcharge = 12;
+    currentPremium += aqiSurcharge;
+    breakdown.push({ type: 'environment', label: `Severe AQI (${currentAQI})`, amount: aqiSurcharge });
+  }
 
-  // Enforce guardrails: ₹30–₹120
-  return Math.max(30, Math.min(120, Math.round(premium * 100) / 100));
+  // 4. Saftey / Risk Tier Discounts
+  if (riskTier === 'low') {
+    let safeDiscount = -8;
+    currentPremium += safeDiscount;
+    breakdown.push({ type: 'safety', label: `Safe Zone Discount`, amount: safeDiscount });
+  } else if (riskTier === 'high' || riskTier === 'critical') {
+    let riskSurcharge = 10;
+    currentPremium += riskSurcharge;
+    breakdown.push({ type: 'safety', label: `High Risk Zone`, amount: riskSurcharge });
+  }
+
+  // 5. Time of Day Adjustment (Night vs Day)
+  const hour = new Date().getHours();
+  if (hour >= 20 || hour < 6) {
+    let nightSurcharge = 5;
+    currentPremium += nightSurcharge;
+    breakdown.push({ type: 'time', label: `Night Shift Factor`, amount: nightSurcharge });
+  }
+
+  // Enforce guardrails: ₹30–₹150
+  currentPremium = Math.max(30, Math.min(150, Math.round(currentPremium * 100) / 100));
+
+  return { premium: currentPremium, breakdown };
 }
 
 module.exports = PolicyController;

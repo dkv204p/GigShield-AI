@@ -19,7 +19,7 @@ export default function AdminAnalytics() {
     };
   }, []);
 
-  const { data, loading, lastUpdated, refresh } = usePolling(fetchAll, 20000);
+  const { data, loading, lastUpdated, refresh } = usePolling(fetchAll, 3000);
   const overview = data?.overview || {};
   const risk = data?.risk || {};
 

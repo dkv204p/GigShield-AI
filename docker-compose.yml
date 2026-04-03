@@ -117,6 +117,8 @@ services:
       PREMIUM_API_URL: http://premium-ai:8001
       FRAUD_API_URL: http://fraud-ai:8002
       DEMO_SEED: "true"
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,6 +141,8 @@ services:
       WEATHER_API_KEY: ${OPENWEATHER_API_KEY}
       AQI_API_KEY: ${WAQI_API_KEY}
       FRAUD_API_URL: http://fraud-ai:8002
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
     depends_on:
       server:
         condition: service_healthy

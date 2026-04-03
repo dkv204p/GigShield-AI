@@ -33,6 +33,16 @@ const DEFAULT_THRESHOLDS = {
     congestion_index: 0.9,    // gridlock threshold
     avg_speed_kmh: 5,         // below 5 km/h = standstill
   },
+  night_shift: {
+    start_hour: 22,           // 10 PM
+    end_hour: 5,              // 5 AM
+  },
+  low_demand: {
+    active: true              // mock API toggle
+  },
+  geo_fence: {
+    high_risk_zones: ['Red Light Area', 'Accident Prone Area', 'Protest Zone']
+  }
 };
 
 // ══════════════════════════════════════════════════════════════════════
@@ -255,6 +265,97 @@ function detectCurfew(envData, thresholds = {}) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// NIGHT SHIFT TRIGGER
+// ══════════════════════════════════════════════════════════════════════
+
+function detectNightShiftRisk(envData, thresholds = {}) {
+  const t = { ...DEFAULT_THRESHOLDS.night_shift, ...thresholds };
+  // Check if current time is within night shift bounds
+  const currentHour = new Date().getHours();
+  let isNightShift = false;
+  
+  if (t.start_hour > t.end_hour) {
+    if (currentHour >= t.start_hour || currentHour < t.end_hour) isNightShift = true;
+  } else {
+    if (currentHour >= t.start_hour && currentHour < t.end_hour) isNightShift = true;
+  }
+
+  if (!isNightShift) return null;
+
+  return {
+    disruption_type: 'night_shift',
+    triggered: true,
+    severity: 'moderate',
+    confidence: 1.0,
+    measured_value: currentHour,
+    threshold_value: t.start_hour,
+    evidence: {
+      time: new Date().toISOString(),
+      reason: 'Auto-coverage activated for high-risk night shift operation'
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// LOW DEMAND TRIGGER (Mock API simulation)
+// ══════════════════════════════════════════════════════════════════════
+
+function detectLowDemand(envData, thresholds = {}) {
+  const t = { ...DEFAULT_THRESHOLDS.low_demand, ...thresholds };
+  if (!t.active) return null;
+  
+  // Simulate checking partner APIs (Zomato, Swiggy) via a random probability 
+  // In a real scenario, this relies on `envData.partner_apis`
+  
+  const hasNoOrders = Math.random() > 0.85; // 15% chance to trigger low demand in demo
+  
+  if (!hasNoOrders) return null;
+
+  return {
+    disruption_type: 'low_demand',
+    triggered: true,
+    severity: 'moderate',
+    confidence: 0.90,
+    measured_value: 0,
+    threshold_value: 1, // < 1 order per hour
+    evidence: {
+      status: 'No active orders assigned for > 1 hour',
+      partner_health: 'Platform metrics indicate unusually low local demand'
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// GEO-FENCE TRIGGER (High Risk Zone Entry)
+// ══════════════════════════════════════════════════════════════════════
+
+function detectGeoFenceRisk(envData, thresholds = {}) {
+  const t = { ...DEFAULT_THRESHOLDS.geo_fence, ...thresholds };
+  // Using traffic or alerts API data to simulate zone risk
+  const zoneName = envData.zone_name;
+  if (!zoneName) return null;
+
+  // Let's mock finding the current zone in high risk alert list
+  const isHighRisk = t.high_risk_zones.some(z => zoneName.includes(z)) || Math.random() > 0.95;
+
+  if (!isHighRisk) return null;
+
+  return {
+    disruption_type: 'geo_fence',
+    triggered: true,
+    severity: 'severe',
+    confidence: 0.95,
+    measured_value: 1,
+    threshold_value: 1,
+    evidence: {
+      zone: zoneName,
+      status: 'Worker entered dynamically flagged high-risk geofence',
+      timestamp: new Date().toISOString()
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // TRIGGER REGISTRY
 // ══════════════════════════════════════════════════════════════════════
 
@@ -269,6 +370,9 @@ function evaluateAllTriggers(envData, customThresholds = {}) {
     { name: 'air_pollution', fn: detectAirPollution,   thresholds: customThresholds.air_pollution },
     { name: 'flood',         fn: detectFlood,          thresholds: customThresholds.flood },
     { name: 'curfew',        fn: detectCurfew,         thresholds: customThresholds.curfew },
+    { name: 'night_shift',   fn: detectNightShiftRisk, thresholds: customThresholds.night_shift },
+    { name: 'low_demand',    fn: detectLowDemand,      thresholds: customThresholds.low_demand },
+    { name: 'geo_fence',     fn: detectGeoFenceRisk,   thresholds: customThresholds.geo_fence },
   ];
 
   const triggered = [];
@@ -294,5 +398,8 @@ module.exports = {
   detectAirPollution,
   detectFlood,
   detectCurfew,
+  detectNightShiftRisk,
+  detectLowDemand,
+  detectGeoFenceRisk,
   DEFAULT_THRESHOLDS,
 };

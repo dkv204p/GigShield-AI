@@ -2,26 +2,26 @@
 // GigShield AI — Admin Claims Monitor
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { adminAPI, claimAPI } from '../../api';
+import { usePolling } from '../../hooks/usePolling';
 import { FiCheck, FiX, FiEye, FiRefreshCw, FiFilter, FiDownload, FiPlay } from 'react-icons/fi';
 
 export default function ClaimsMonitor() {
-  const [claims, setClaims] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadClaims(); }, [filter]);
-
-  async function loadClaims() {
-    setLoading(true);
+  const fetchClaims = useCallback(async () => {
     try {
       const params = filter !== 'all' ? { status: filter } : {};
       const { data } = await adminAPI.claims(params);
-      setClaims(data.data?.claims || []);
-    } catch (err) { /* graceful */ }
-    setLoading(false);
-  }
+      return data.data?.claims || [];
+    } catch {
+      return [];
+    }
+  }, [filter]);
+
+  const { data: claimsObj, loading, refresh: loadClaims } = usePolling(fetchClaims, 3000);
+  const claims = claimsObj || [];
 
   const handleReview = async (claimId, action) => {
     try {
@@ -35,12 +35,10 @@ export default function ClaimsMonitor() {
   };
 
   const handleForceScan = async () => {
-    setLoading(true);
     try {
       await adminAPI.triggerScan();
       loadClaims();
     } catch (err) { /* graceful */ }
-    setLoading(false);
   };
 
   const handleExportCSV = () => {
