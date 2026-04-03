@@ -92,5 +92,5 @@ This project is licensed under the MIT License — see the [LICENSE.md](LICENSE.
 
 **Empowering the backbone of India's digital economy.**  
 Made with ❤️ for the Gig Community.
-
+ 
 </div>
